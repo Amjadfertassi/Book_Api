@@ -1,129 +1,117 @@
-const express = require("express");
-const routeur = express.Router();
-const Joi = require('joi');
+const express = require('express');
+const router = express.Router();
+const mongoose = require('mongoose');
+const { Authore , validateExistingAuthors , validateExistingAuthors } = require('../models/Authore'); // Use correct casing
+const asyncHandler = require('express-async-handler');
 
+
+// Connection to database
 /**
- * @description => authors Array :
- * @public YES
- * 
-*/
+ * @description If the Database "bookStoreDB" already exists, the data will go to it; if not, it will be created automatically.
+ */
+mongoose.connect('mongodb://localhost/bookStoreDB')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((error) => console.log('The connection failed', error));
 
-
+// Sample authors array (for testing purposes)
 const authors = [
-    {
-        id: 1,
-        firstName: "Amjad",
-        lastName: "Fertassi",
-        Age: 22
-    },
-    {
-        id: 2,
-        firstName: "John",
-        lastName: "Doe",
-        Age: 30
-    },
-    {
-        id: 3,
-        firstName: "Jane",
-        lastName: "Smith",
-        Age: 25
-    },
-    {
-        id: 4,
-        firstName: "Alice",
-        lastName: "Johnson",
-        Age: 28
-    },
-    {
-        id: 5,
-        firstName: "Robert",
-        lastName: "Brown",
-        Age: 35
-    }
+    { id: 1, firstName: "Amjad", lastName: "Fertassi", age: 22 },
+    { id: 2, firstName: "John", lastName: "Doe", age: 30 },
+    { id: 3, firstName: "Jane", lastName: "Smith", age: 25 },
+    { id: 4, firstName: "Alice", lastName: "Johnson", age: 28 },
+    { id: 5, firstName: "Robert", lastName: "Brown", age: 35 }
 ];
-
 
 /**
  * @description => get All Authors
  * @public YES
  * @method GET
  * @router => /api/author
- * 
-*/
+ */
 
-routeur.get("/" , (req,res)=> {
-    res.status(200).json(authors);
-});
-
-
-/**
- * @description => get Author by ID 
- * @public YES
- * @method GET
- * @router => /api/author/:id
- * 
-*/
-
-routeur.get("/:id" , (req,res)=> {
-    const author = authors.find( b => b.id === parseInt(req.params.id));
-
-    if(author){
-        res.status(200).json(author);
-    } else {
-        res.status(404).json({ message : "Author is not found"});
+router.get("/", async (req, res) => {
+    // .sort({firstName:1}) ==> make sort by A-Z to the firstName = .sort({firstName:-1}) ==> make sort by Z-A to the firstName 
+    // .select("firstName lastName") ===> seect just the Fn and Ln 
+    // const authorList = await Authore.find().sort({firstName:1}).select("firstName lastName");
+    try {
+        const authorList = await Authore.find();
+        res.status(200).json(authorList);
+    }
+    catch (error){
+        console.log(error);
+        res.status(500).json({message : "Something Went Wrong !!"}); 
     }
 });
 
+/**
+ * @description => get Author by ID
+ * @public YES
+ * @method GET
+ * @router => /api/author/:id
+ */
+router.get("/:id", async (req, res) => {
+    // const author = authors.find(b => b.id === parseInt(req.params.id));
+    try {
+        const author = await Authore.findById(req.params.id); 
+        if (author) {
+            res.status(200).json(author);
+        } else {
+            res.status(404).json({ message: "Author not found"});
+        }
+    } catch(error) {
+        res.status(500).json({ message: "Something Went Wrong!!"});
+    }
+});
 
 /**
  * @description => Add a New Author
  * @public YES
  * @method POST
- * @router => /api/author/:id
- * 
-*/
-
-routeur.post("/" , (req,res)=> {
-    const { error } = validateExistingAuthors (req.body);
-    //validate with joi library
-    if(error) {
-        return res.status(404).json({ message : error.details[0].message });
-    } ;
-
-    const author = {
-        id : authors.length + 1,
-        firstName : req.body.firstName,
-        lastName : req.body.lastName,
-        Age : req.body.Age ,
+ * @router => /api/author
+ */
+router.post("/", async (req, res) => {
+    const { error } = validateExistingAuthors(req.body);
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
     }
 
-    authors.push(author);
-    res.status(201).json(author);
+    try {
+        const author = new Authore({
+            firstName: req.body.firstName,
+            lastName: req.body.lastName,
+            age: req.body.age
+        });
 
+        // Save in database
+        const result = await author.save();
+        res.status(201).json(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Something went wrong" });
+    }
 });
-
 
 /**
  * @description => Update an Author
  * @public YES
  * @method PUT
  * @router => /api/author/:id
- * 
-*/
-
-
-routeur.put("/:id" , (req,res)=> {
+ */
+router.put("/:id", async (req, res) => {
     const { error } = validateUpdatedAuthors(req.body);
-    //validate with joi library
-    if(error) {
-        return res.status(404).json({ message : error.details[0].message });
-    } ;
+    if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+    }
 
-    const author = authors.find(b => b.id === parseInt(req.params.id));
-    if(author){
-        res.status(200).json({ message : "Author has been Updated"});
-    } else {
-        res.status(404).json({ message : "Author Not found"})
+    try {
+        const author = await Authore.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!author) {
+            return res.status(404).json({ message: "Author not found" });
+        }
+        res.status(200).json(author);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Something went wrong" });
     }
 });
 
@@ -132,46 +120,20 @@ routeur.put("/:id" , (req,res)=> {
  * @public YES
  * @method DELETE
  * @router => /api/author/:id
-*/
-
-routeur.delete("/:id" , (req,res)=> {
-    const author = authors.find(b => b.id === parseInt(req.params.id));
-    if(author){
-        res.status(200).json({message : "The Author has been Deleted" });
-    } else {
-        res.status(404).json({ message : "Author Not Found"});
+ */
+router.delete("/:id", async (req, res) => {
+    try {
+        const author = await Authore.findById(req.params.id);
+        if (author) {
+            await Authore.findByIdAndDelete(req.params.id);
+            res.status(200).json({ message: "The Author has been deleted" });
+        } else {
+            return res.status(404).json({ message: "Author not found" });
+        }
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Something went wrong" });
     }
 });
 
-/**
- * @description => Validation with Joi
- * @public YES
-*/
-
-function validateExistingAuthors(obj){
-    const schema = Joi.object({
-        firstName: Joi.string().trim().min(3).max(30).required(),
-        lastName: Joi.string().trim().min(3).max(30).required(),
-        Age: Joi.number().min(0).required(),
-    }
-);
-    return schema.validate(obj);
-}
-
-function validateUpdatedAuthors(obj){
-    const schema = Joi.object({
-        firstName: Joi.string().trim().min(3).max(30),
-        lastName: Joi.string().trim().min(3).max(30),
-        Age: Joi.number().min(0),
-    }
-);
-    return schema.validate(obj);
-}
-
-
-
-
-
-
-
-module.exports = routeur;
+module.exports = router;
