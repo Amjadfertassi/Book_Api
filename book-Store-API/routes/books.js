@@ -148,9 +148,6 @@ routeur.delete("/:id" , (req,res) => {
 });
 
 
-
-
-
 /** 
  * @description => verification Using joi 
  * @access public 
