@@ -1,7 +1,8 @@
 const express = require("express");
 const routeur = express.Router();
-const {  validatecreatedbook , validateUpdatebook , Book } = require('../models/Book')
 const asyncHandler = require('express-async-handler');
+const {  validatecreatedbook , validateUpdatebook , Book } = require('../models/Book')
+
 
 
 /** 
@@ -104,7 +105,7 @@ routeur.put("/:id" , asyncHandler ( async (req,res) => {
 routeur.delete("/:id" , asyncHandler( async (req,res) => {
     const book = await Book.findById(res.params.id);
     if (book) {
-        await Book.findByIdAndDelete(res.params.id);
+        await Book.findByIdAndDelete(req.params.id);
         res.status(200).json({message : "book has been deleted "}); 
     } else {
         res.status(404).json({ message:"book not found"});
